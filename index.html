@@ -6,7 +6,7 @@
 
 var results;
 $().ready(function() {
-    $.ajaxError( function (event, jqXHR, ajaxSettings, thrownError) {
+    $().ajaxError( function (event, jqXHR, ajaxSettings, thrownError) {
         console.log(thrownError);
     });
     loadData("results2009");
