@@ -1,0 +1,175 @@
+﻿<html>
+<head>
+<script type="text/javascript" src="jquery.min.js"></script>
+<script type="text/javascript">
+"use strict";
+
+var results;
+$().ready(function() {
+    loadData("results2009");
+}); 
+
+function getSortedPartiesList(votes_dataset) {
+    var partiesArray = [];
+    for (var i in votes_dataset) {
+        var partyName = votes_dataset[i][0];
+        var partySymbol = votes_dataset[i][1];
+        var partyVotes = votes_dataset[i][2];
+        partiesArray.push({name:partyName,symbol:partySymbol,votes:partyVotes});
+    }
+    partiesArray.sort(function(a,b) {return b.votes - a.votes });
+    return partiesArray;
+}
+
+function calculateMandates(votes, odafim, offsets) {
+    var totalVotes = 0;
+    var parties = {};
+    for (var i in votes) {
+        var partyName = votes[i][0];
+        var partySymbol = votes[i][1];
+        var partyVotes = votes[i][2];
+        if (offsets[partySymbol]) partyVotes += offsets[partySymbol];
+        var partyMandates = (votes[i][3])?votes[i][3]:0;
+        totalVotes += partyVotes;
+        parties[partySymbol] = {votes:partyVotes};
+    }
+    var threshold = totalVotes * 2 / 100;
+    var totalVotesAfterThreshold = 0;
+    for (var i in parties) {
+        parties[i].votesAfterThreshold = (parties[i].votes>=threshold)?parties[i].votes:0;
+        totalVotesAfterThreshold += parties[i].votesAfterThreshold;
+    }
+    var mandate = totalVotesAfterThreshold / 120;
+    var totalMandatesBase=0;
+    for (var i in parties) {
+        parties[i].mandateBase = Math.floor(parties[i].votesAfterThreshold / mandate);
+        totalMandatesBase += parties[i].mandateBase;
+    }
+    var missingMandates = 120 - totalMandatesBase;
+    var partyGroups = {};
+    for (var i=0; i<odafim.length; ++i) {
+        var group = {votes: 0, mandateBase: 0, mandates: 0};
+        group.parties = odafim[i];
+        partyGroups[odafim[i][0] + "&" + odafim[i][1]] = group;
+        if (parties[odafim[i][0]] == undefined) alert("בעיה בנתונים: אין רשומה למפלגה באותיות " + odafim[i][0]);
+        if (parties[odafim[i][1]] == undefined) alert("בעיה בנתונים: אין רשומה למפלגה באותיות " + odafim[i][1]);
+        parties[odafim[i][0]].partyGroup = group;
+        parties[odafim[i][1]].partyGroup = group;
+    }
+    for (var i in parties) {
+        if (! parties[i].partyGroup) {
+            parties[i].partyGroup = {votes:0, mandateBase: 0, mandates: 0, parties: [i]};
+            partyGroups[i] = parties[i].partyGroup;
+        }
+        parties[i].partyGroup.votes += parties[i].votesAfterThreshold;
+        parties[i].partyGroup.mandateBase += parties[i].mandateBase;
+        parties[i].partyGroup.mandates += parties[i].mandateBase;
+    }
+    for (var i=0; i<missingMandates; ++i) {
+        var maxMeasure = 0;
+        var maxMeasureGroup = undefined;
+        for (var j in partyGroups) {
+            partyGroups[j].measure = partyGroups[j].votes / (partyGroups[j].mandates+1);
+            if (partyGroups[j].measure > maxMeasure) {
+                maxMeasure = partyGroups[j].measure;
+                maxMeasureGroup = j;
+            }
+            if (partyGroups[j].measure>0) console.log("  measure for " + j + ": " + partyGroups[j].measure);
+        }
+        console.log("adding another mandate to " + maxMeasureGroup);
+        ++partyGroups[maxMeasureGroup].mandates;
+    }
+    for (var i in partyGroups) {
+        partyGroups[i].jointMeasure = partyGroups[i].votes / partyGroups[i].mandates;
+        var maxLastMandate = 0;
+        var maxLastMandateParty = undefined;
+        var finalMandates = 0;
+        for (var j=0; j<partyGroups[i].parties.length; ++j) {
+            var party = partyGroups[i].parties[j];
+            parties[party].finalMandates = isNaN(partyGroups[i].jointMeasure)?0:Math.floor(parties[party].votesAfterThreshold / partyGroups[i].jointMeasure);
+            finalMandates += parties[party].finalMandates;
+            parties[party].lastMandateMeasure = parties[party].votesAfterThreshold/(parties[party].finalMandates+1);
+            if (parties[party].lastMandateMeasure>maxLastMandate) {
+                maxLastMandate = parties[party].lastMandateMeasure;
+                maxLastMandateParty = party;
+            }
+        }
+        if (finalMandates < partyGroups[i].mandates) {
+            ++parties[maxLastMandateParty].finalMandates;    
+        }
+    }
+    return parties;
+}
+
+function loadData(dataset_name) {
+    $.ajax({url:dataset_name+".json", success:function(data, rc, xhr) {
+        results = JSON.parse(data);
+        var fullResults = getSortedPartiesList(results.votes, results.odafim, {});
+        var totalVotes=0;
+        var totalMandates=0;
+        var totalOfficialMandates=0;
+        var html = "";
+        for (var i=0; i<fullResults.length; ++i) {
+            html += "<tr data-party-symbol='"+ fullResults[i].symbol +"'><td>" + fullResults[i].symbol + "</td><td>" + fullResults[i].name + "</td><td>" + fullResults[i].votes + "</td><td class='cell_mandates'></td><td><input type='number' class='input_diff'></input></td></tr>";
+            totalVotes += fullResults[i].votes;
+            totalMandates += fullResults[i].finalMandates;
+            totalOfficialMandates += fullResults[i].officialMandates;
+        }
+        $('#results_body')[0].innerHTML = html;
+        $('#dataset_name')[0].innerHTML = $('#data_set_selection>option[value="' + dataset_name +'"]')[0].innerHTML;
+        var mandates = calculateMandates(results.votes, results.odafim, {});
+        updateMandatesDisplay(mandates,mandates);
+    }});
+
+}
+
+function updateMandatesDisplay(baseMandates, simulatedMandates) {
+    $('#results_body>tr').each(function(i,tr) {
+        var symbol = $(tr).data('party-symbol');
+        var html = simulatedMandates[symbol].finalMandates + 
+            ((baseMandates[symbol].finalMandates==simulatedMandates[symbol].finalMandates)?
+            "":(" (" + baseMandates[symbol].finalMandates + ")"));
+        $(tr).find('td.cell_mandates')[0].innerHTML = html;
+    });
+}
+
+function calculateDiffs() {
+    var mandates = calculateMandates(results.votes, results.odafim, {});
+    var diffs = {};
+    $('#results_body>tr').each(function(i,tr) {
+        var symbol = $(tr).data('party-symbol');
+        var diffElement = $(tr).find('td>input.input_diff')[0];
+        if (diffElement.value) {
+            diffs[symbol] = parseInt(diffElement.value);
+        }
+    });
+    var mandatesWithDiffs = calculateMandates(results.votes, results.odafim, diffs);
+    updateMandatesDisplay(mandates,mandatesWithDiffs);
+}
+</script>
+<style>
+body {
+    direction: rtl;
+    font-family: helvetica, sans-serif;
+}
+</style>
+</head>
+<body>
+<select id="data_set_selection">
+    <option value="results2009">נתונים סופיים 2009</option>
+    <option value="results2013-interim">נתוני ביניים 2013</option>
+</select>
+<input type="button" onclick="loadData($('#data_set_selection')[0].value);" value="טען">
+
+<h1> המנדטים לפי <span id="dataset_name"></span></h1>
+<table id="results">
+<thead>
+<tr>
+    <th>רשימה</th><th>שם הרשימה</th><th>מספר קולות כשרים</th><th>מנדטים</th><th>הפרש <input type="button" onclick="calculateDiffs()" value="חשב"></th>
+</tr>
+</thead>
+<tbody id="results_body">
+</tbody>
+</table>
+</body>
+</html>
