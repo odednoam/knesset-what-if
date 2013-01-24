@@ -102,7 +102,7 @@ function calculateMandates(votes, odafim, offsets) {
 }
 
 function loadData(dataset_name) {
-    $.getJSON(dataset_name+".json", {, function(results, rc, xhr) {
+    $.getJSON(dataset_name+".json", {}, function(results, rc, xhr) {
         var fullResults = getSortedPartiesList(results.votes, results.odafim, {});
         var totalVotes=0;
         var totalMandates=0;
