@@ -1,6 +1,7 @@
 ﻿<html>
 <head>
 <script type="text/javascript" src="jquery.min.js"></script>
+<script type="text/javascript" src="jquery-ui-1.10.0.custom.min.js"></script>
 <script type="text/javascript">
 "use strict";
 
@@ -9,7 +10,7 @@ $().ready(function() {
     $().ajaxError( function (event, jqXHR, ajaxSettings, thrownError) {
         console.log(thrownError);
     });
-    loadData("results2009");
+    loadData("results2013-interim");
 }); 
 
 function getSortedPartiesList(votes_dataset) {
@@ -113,7 +114,7 @@ function loadData(dataset_name) {
         var totalOfficialMandates=0;
         var html = "";
         for (var i=0; i<fullResults.length; ++i) {
-            html += "<tr data-party-symbol='"+ fullResults[i].symbol +"'><td>" + fullResults[i].symbol + "</td><td>" + fullResults[i].name + "</td><td>" + fullResults[i].votes + "</td><td class='cell_mandates'></td><td><input type='number' class='input_diff'></input></td></tr>";
+            html += "<tr data-party-symbol='"+ fullResults[i].symbol +"'><td>" + fullResults[i].symbol + "</td><td>" + fullResults[i].name + "</td><td class='votes_count'>" + fullResults[i].votes + "</td><td class='cell_mandates'></td><td><input type='number' class='input_diff'></input></td></tr>";
             totalVotes += fullResults[i].votes;
             totalMandates += fullResults[i].finalMandates;
             totalOfficialMandates += fullResults[i].officialMandates;
@@ -122,7 +123,38 @@ function loadData(dataset_name) {
         $('#dataset_name')[0].innerHTML = $('#data_set_selection>option[value="' + dataset_name +'"]')[0].innerHTML;
         var mandates = calculateMandates(results.votes, results.odafim, {});
         updateMandatesDisplay(mandates,mandates);
+        $("#results_body>tr>td.votes_count").draggable({axis:"y", snap:true, opacity: 0.5, revert: true, 
+        drag: function(event,ui) {
+            console.log(event);
+            $(".dropTarget").toggleClass("dropTarget", false);
+            if (event.toElement && event.toElement != event.target) {
+                $(event.toElement).parent().toggleClass("dropTarget", true);
+            }
+        },
+        stop: function(event, ui) {
+            var toParty = $(".dropTarget").data("party-symbol");
+            $(".dropTarget").toggleClass("dropTarget", false);
+            if (toParty) {
+                var fromParty = $(event.target).parent().data("party-symbol");
+                var currentDiff = parseInt($(event.target).parent().find("td>input.input_diff")[0].value);
+                if (isNaN(currentDiff)) currentDiff = 0;
+                var remainingVotes = parseInt($(event.target).parent().find("td.votes_count")[0].innerHTML) + currentDiff;
+                var amount = parseInt(prompt("כמה קולות להעביר מ '" + fromParty + "' אל '" + toParty + "'?", remainingVotes));
+                if (amount) {
+                    var fromDiffElement = $('tr[data-party-symbol="' + fromParty + '"]>td>input.input_diff')[0];
+                    var fromValue = parseInt(fromDiffElement.value);
+                    if (! fromValue || isNaN(fromValue)) fromValue = 0;
+                    fromDiffElement.value = fromValue - amount;
+                    var toDiffElement = $('tr[data-party-symbol="' + toParty + '"]>td>input.input_diff')[0];
+                    var toValue = parseInt(toDiffElement.value);
+                    if (! toValue || isNaN(toValue)) toValue = 0;
+                    toDiffElement.value = toValue + amount;
+                }
+            }
+        }
+        });
     });
+    
 
 }
 
@@ -155,6 +187,9 @@ body {
     direction: rtl;
     font-family: helvetica, sans-serif;
 }
+.dropTarget>td{
+    font-weight: bold;
+}
 </style>
 <script type="text/javascript">
 
@@ -173,7 +208,7 @@ body {
 <body>
 <select id="data_set_selection">
     <option value="results2009">נתונים סופיים 2009</option>
-    <option value="results2013-interim">נתוני ביניים 2013</option>
+    <option selected value="results2013-interim">נתוני ביניים 2013</option>
 </select>
 <input type="button" onclick="loadData($('#data_set_selection')[0].value);" value="טען">
 
