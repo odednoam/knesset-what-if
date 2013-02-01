@@ -10,7 +10,7 @@ $().ready(function() {
     $().ajaxError( function (event, jqXHR, ajaxSettings, thrownError) {
         console.log(thrownError);
     });
-    loadData("results2013-interim");
+    loadData("results2013");
 }); 
 
 function getSortedPartiesList(votes_dataset) {
@@ -212,7 +212,7 @@ input[type="number"] {
 <body>
 <select id="data_set_selection">
     <option value="results2009">נתונים סופיים 2009</option>
-    <option selected value="results2013-interim">נתוני ביניים 2013</option>
+    <option selected value="results2013">נתונים סופיים 2013</option>
 </select>
 <input type="button" onclick="loadData($('#data_set_selection')[0].value);" value="טען">
 
